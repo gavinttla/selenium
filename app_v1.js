@@ -1,6 +1,6 @@
 /**
- * This is version 2, simulate the click on the page to prevent amazon detect invalid referral url.
- * 
+ * This is the first version that request a url directly from browser. It is not a good method since amazon
+ * can detect the referral then block the access.
  */
 
 var searchKey, findKey;
@@ -15,7 +15,6 @@ process.argv.forEach(function(val, index){
         }
     }
 });
-
 
 if (!searchKey || !findKey){
     console.log('command not right, please include -search and -find to run it \nEXAMPLE: c:\\node\\selenium>node app.js -search="bento box" -find="gotech"');
@@ -47,8 +46,6 @@ var mysearch = new function() {
 
     this.curUrl = '';
 
-    this.isDebug = false;
-
     // between clicks time range
     this.restTime = 2000;
 
@@ -73,14 +70,14 @@ var mysearch = new function() {
                         var info = self.checkPage(source, url);
 
                         if(info.isKeyExist){
-                            console.log("FOUND KEYWORD:"+self.findKey+" at page 1:"+url);
+                            console.log("FOUND KEYWORD:"+self.findKey+" at page:"+url);
                             process.exit()
                         }
                         if(info.nextPageUrl) {
                             
                             setTimeout(function() {
 
-                                self.clickNextPage(info.nextPageUrl);
+                                self.getLivePage(info.nextPageUrl);
 
                             }, self.restTime);
 
@@ -92,79 +89,39 @@ var mysearch = new function() {
         });
     };
 
-    
-    this.clickNextPage = function(nextUrl) {
 
-        var nextnum = this.getPageNum(nextUrl);
-        self.echo("opening page num:"+nextnum);
-        self.echo("opening page url:"+nextUrl);
+    this.getLivePage = function(url) {
+        
+        var newurl = 'https://www.amazon.com' + url;
+        driver.get(newurl).then(function(){
+            driver.getPageSource().then(function(source){
+                //console.log(source);
 
-        driver.findElements(By.linkText(nextnum)).then(function(elements){
+                driver.getCurrentUrl().then(function(url){
 
-            //self.echo(elments);
-            elements.forEach(function(element, index){
+                    var num = self.getPageNum(url);
+                    console.log("check page:" + num + "=>" + url);
 
-                element.getAttribute("href").then(function(href){
-
-                    self.echo('cururl:'+href);
-                    self.echo('nexurl:'+nextUrl);
-
-                    var isLink = false;
-                    if(self.hasAmazonKey(href)) {
-                        if(href == 'https://www.amazon.com' + nextUrl){
-                            isLink = true;
-                        }
-                    } else {
-                        if(href == nextUrl) {
-                            isLink = true;
-                        }
+                    var info = self.checkPage(source, url);
+                    if(info.isKeyExist){
+                        console.log("FOUND KEYWORD:"+self.findKey+" at page:"+url);
+                        process.exit()
                     }
 
-                    if(isLink){
-                        self.echo("before click on: "+href);
-                        element.click().then(function(){
+                    if(info.nextPageUrl) {
+                        
+                        setTimeout(function() {
 
-                            driver.sleep(1000).then(function(){
+                            self.getLivePage(info.nextPageUrl);
 
-                                driver.getPageSource().then(function(source){
-                                    //self.echo(source);
+                        }, self.restTime);
 
-                                    driver.getCurrentUrl().then(function(url){
-
-                                        var num = self.getPageNum(url);
-                                        console.log("check page:" + num + "=>" + url);
-
-                                        var info = self.checkPage(source, url);
-                                        if(info.isKeyExist){
-                                            console.log("FOUND KEYWORD:"+self.findKey+" AT PAGE :"+num+":"+url);
-                                            process.exit()
-                                        }
-
-                                        if(info.nextPageUrl) {
-                                            
-                                            setTimeout(function() {
-
-                                                self.clickNextPage(info.nextPageUrl);
-
-                                            }, self.restTime);
-
-                                        }
-                                    });
-                                });
-            
-
-                            });
-
-
-            
-
-                        });
                     }
                 });
             });
         });
-        
-    };
+    }
+
 
     this.checkPage = function(html, url) {
         var isKeyExist = this.isKeywordExist(html);
@@ -183,19 +140,10 @@ var mysearch = new function() {
         html = html.toLowerCase();
         var newhtml = html.replace(/<!--[\s\S]*?-->/g, "");  // remove all html comments
         var val = newhtml.indexOf(this.findKey);
-        return val > 0;
-    };
-
-
-    this.hasAmazonKey = function(url) {
-
-        url = url.toLowerCase();
-        var val = url.indexOf("amazon");
-        return val > 0;
     };
 
     this.getNextPageLink = function(html, url) {
-        //self.echo('getnextpagelink:'+url);
+        //console.log('getnextpagelink:'+url);
         var newurl, tempnum, addnum, tempurl, finalurl;
         var curPageNum = this.getPageNum(url);
         if(!curPageNum){
@@ -203,21 +151,11 @@ var mysearch = new function() {
         }
         var $ = cheerio.load(html);
 
-        if(curPageNum == 2) {
-            self.echo("getNextPageLink url:"+url);
-            //self.echo(html);
-            //this.outputFile(html);
-        }
-
         $(".pagnLink a").each(function(){
             tempurl = $(this).attr('href');
-            //self.echo(tempurl);
-
+            //console.log(tempurl);
             tempnum = self.getPageNum(tempurl);
             addnum = parseInt(curPageNum) + 1;
-            if(curPageNum == 2) {
-                self.echo("getNextPageLink tempurl:"+tempurl);
-            }            
             if(addnum == parseInt(tempnum)){
                 finalurl = tempurl;
             } 
@@ -235,23 +173,6 @@ var mysearch = new function() {
             return found[1];
         }else{
             return false;
-        }
-    };
-
-    this.outputFile = function(html) {
-        fs.writeFile("temp.html", html, function(error) {
-          if(error) {
-            self.echo(error);
-          }
-
-          self.echo("file store success");
-        });
-
-    };
-
-    this.echo = function(str) {
-        if(this.isDebug){
-            console.log(str);
         }
     };
 

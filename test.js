@@ -1,5 +1,5 @@
 var searchKey = 'bento box';
-var findKey = 'sonycam';
+var findKey = 'freshware';
 
 /*
 process.argv.forEach(function(val, index){
@@ -21,16 +21,19 @@ if (!searchKey || !findKey){
 //console.log(searchKey + "|" + findKey);
 //process.exit()
 
+/*
 var webdriver = require('selenium-webdriver'),
     By = webdriver.By,
     until = webdriver.until;
 
-var fs = require('fs');
+
 var cheerio = require('cheerio');
 
 var driver = new webdriver.Builder()
     .forBrowser('firefox')
     .build();
+*/
+var fs = require('fs');
 
 var mysearch = new function() {
 
@@ -43,6 +46,8 @@ var mysearch = new function() {
     this.baseUrl = '';
 
     this.curUrl = '';
+
+    this.isDebug = false;
 
     // between clicks time range
     this.restTime = 2000;
@@ -68,14 +73,14 @@ var mysearch = new function() {
                         var info = self.checkPage(source, url);
 
                         if(info.isKeyExist){
-                            console.log("FOUND KEYWORD:"+self.findKey+" at page:"+url);
+                            console.log("FOUND KEYWORD:"+self.findKey+" at page 1:"+url);
                             process.exit()
                         }
                         if(info.nextPageUrl) {
                             
                             setTimeout(function() {
 
-                                self.getLivePage(info.nextPageUrl);
+                                self.clickNextPage(info.nextPageUrl);
 
                             }, self.restTime);
 
@@ -87,54 +92,22 @@ var mysearch = new function() {
         });
     };
 
-
-    this.getLivePage = function(url) {
-        
-        var newurl = 'https://www.amazon.com' + url;
-        driver.get(newurl).then(function(){
-            driver.getPageSource().then(function(source){
-                //console.log(source);
-
-                driver.getCurrentUrl().then(function(url){
-
-                    var num = self.getPageNum(url);
-                    console.log("check page:" + num + "=>" + url);
-
-                    var info = self.checkPage(source, url);
-                    if(info.isKeyExist){
-                        console.log("FOUND KEYWORD:"+self.findKey+" at page:"+url);
-                        process.exit()
-                    }
-
-                    if(info.nextPageUrl) {
-                        
-                        setTimeout(function() {
-
-                            self.clickNextPage(info.nextPageUrl);
-
-                        }, self.restTime);
-
-                    }
-                });
-            });
-        });
-    };
-
     
     this.clickNextPage = function(nextUrl) {
 
         var nextnum = this.getPageNum(nextUrl);
-        console.log("opening page:"+nextnum);
+        self.echo("opening page num:"+nextnum);
+        self.echo("opening page url:"+nextUrl);
 
         driver.findElements(By.linkText(nextnum)).then(function(elements){
 
-            //console.log(elments);
+            //self.echo(elments);
             elements.forEach(function(element, index){
 
                 element.getAttribute("href").then(function(href){
 
-                    //console.log(href);
-                    //console.log(nextUrl);
+                    self.echo('cururl:'+href);
+                    self.echo('nexurl:'+nextUrl);
 
                     var isLink = false;
                     if(self.hasAmazonKey(href)) {
@@ -148,34 +121,41 @@ var mysearch = new function() {
                     }
 
                     if(isLink){
+                        self.echo("before click on: "+href);
                         element.click().then(function(){
 
-                            driver.getPageSource().then(function(source){
-                                //console.log(source);
+                            driver.sleep(1000).then(function(){
 
-                                driver.getCurrentUrl().then(function(url){
+                                driver.getPageSource().then(function(source){
+                                    //self.echo(source);
 
-                                    var num = self.getPageNum(url);
-                                    console.log("check page:" + num + "=>" + url);
+                                    driver.getCurrentUrl().then(function(url){
 
-                                    var info = self.checkPage(source, url);
-                                    if(info.isKeyExist){
-                                        console.log("FOUND KEYWORD:"+self.findKey+" at page:"+url);
-                                        process.exit()
-                                    }
+                                        var num = self.getPageNum(url);
+                                        self.echo("check page:" + num + "=>" + url);
 
-                                    if(info.nextPageUrl) {
-                                        
-                                        setTimeout(function() {
+                                        var info = self.checkPage(source, url);
+                                        if(info.isKeyExist){
+                                            self.echo("FOUND KEYWORD:"+self.findKey+" AT PAGE :"+num+":"+url);
+                                            process.exit()
+                                        }
 
-                                            self.clickNextPage(info.nextPageUrl);
+                                        if(info.nextPageUrl) {
+                                            
+                                            setTimeout(function() {
 
-                                        }, self.restTime);
+                                                self.clickNextPage(info.nextPageUrl);
 
-                                    }
+                                            }, self.restTime);
+
+                                        }
+                                    });
                                 });
-                            });
             
+
+                            });
+
+
             
 
                         });
@@ -214,7 +194,7 @@ var mysearch = new function() {
     };
 
     this.getNextPageLink = function(html, url) {
-        //console.log('getnextpagelink:'+url);
+        //self.echo('getnextpagelink:'+url);
         var newurl, tempnum, addnum, tempurl, finalurl;
         var curPageNum = this.getPageNum(url);
         if(!curPageNum){
@@ -222,19 +202,20 @@ var mysearch = new function() {
         }
         var $ = cheerio.load(html);
 
-        if(curPageNum == 3) {
-            console.log("url:"+url);
-            console.log(html);
+        if(curPageNum == 2) {
+            self.echo("getNextPageLink url:"+url);
+            //self.echo(html);
+            //this.outputFile(html);
         }
 
         $(".pagnLink a").each(function(){
             tempurl = $(this).attr('href');
-            //console.log(tempurl);
+            //self.echo(tempurl);
 
             tempnum = self.getPageNum(tempurl);
             addnum = parseInt(curPageNum) + 1;
-            if(curPageNum == 3) {
-                console.log("tempurl:"+tempurl);
+            if(curPageNum == 2) {
+                self.echo("getNextPageLink tempurl:"+tempurl);
             }            
             if(addnum == parseInt(tempnum)){
                 finalurl = tempurl;
@@ -256,11 +237,50 @@ var mysearch = new function() {
         }
     };
 
+    this.outputFile = function(html) {
+        fs.writeFile("temp.html", html, function(error) {
+          if(error) {
+            self.echo(error);
+          }
+
+          self.echo("file store success");
+        });
+
+    };
+
+    this.echo = function(str) {
+        if(this.isDebug){
+            console.log(str);
+        }
+    };
+
+
+    this.pass = function() {
+
+        this.findKeyword = 'valilife';
+
+        fs.readFile("temp.html", 'utf8', function(error, text) {
+
+            text = text.replace(/\n/, "");
+            text = text.replace(/\r/, "");
+            var newtext = text.replace(/<!--[\s\S]*?-->/g, "");
+
+            fs.writeFile("temp1.html", newtext, function(err){
+
+            });
+
+            console.log(text);
+            
+        });
+
+    }
+
 };
 
 
 var soption = {'url':'https://www.amazon.com/', 'searchKeyword':searchKey, 'findKeyword':findKey};
 //var soption = {'url':'https://www.amazon.com/', 'searchKeyword':'lunch box', 'findKeyword':'valilife'};
 
-mysearch.execute(soption);
+//mysearch.execute(soption);
+mysearch.pass();
 
