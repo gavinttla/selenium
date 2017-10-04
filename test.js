@@ -1,5 +1,7 @@
-var searchKey, findKey;
+var searchKey = 'bento box';
+var findKey = 'sonycam';
 
+/*
 process.argv.forEach(function(val, index){
     if(index>1){
         var arrTemp = val.split('=');
@@ -10,6 +12,7 @@ process.argv.forEach(function(val, index){
         }
     }
 });
+*/
 
 if (!searchKey || !findKey){
     console.log('command not right, please include -search and -find to run it \nEXAMPLE: c:\\node\\selenium>node app.js -search="bento box" -find="gotech"');
@@ -107,7 +110,7 @@ var mysearch = new function() {
                         
                         setTimeout(function() {
 
-                            self.getLivePage(info.nextPageUrl);
+                            self.clickNextPage(info.nextPageUrl);
 
                         }, self.restTime);
 
@@ -115,8 +118,73 @@ var mysearch = new function() {
                 });
             });
         });
-    }
+    };
 
+    
+    this.clickNextPage = function(nextUrl) {
+
+        var nextnum = this.getPageNum(nextUrl);
+        console.log("opening page:"+nextnum);
+
+        driver.findElements(By.linkText(nextnum)).then(function(elements){
+
+            //console.log(elments);
+            elements.forEach(function(element, index){
+
+                element.getAttribute("href").then(function(href){
+
+                    //console.log(href);
+                    //console.log(nextUrl);
+
+                    var isLink = false;
+                    if(self.hasAmazonKey(href)) {
+                        if(href == 'https://www.amazon.com' + nextUrl){
+                            isLink = true;
+                        }
+                    } else {
+                        if(href == nextUrl) {
+                            isLink = true;
+                        }
+                    }
+
+                    if(isLink){
+                        element.click().then(function(){
+
+                            driver.getPageSource().then(function(source){
+                                //console.log(source);
+
+                                driver.getCurrentUrl().then(function(url){
+
+                                    var num = self.getPageNum(url);
+                                    console.log("check page:" + num + "=>" + url);
+
+                                    var info = self.checkPage(source, url);
+                                    if(info.isKeyExist){
+                                        console.log("FOUND KEYWORD:"+self.findKey+" at page:"+url);
+                                        process.exit()
+                                    }
+
+                                    if(info.nextPageUrl) {
+                                        
+                                        setTimeout(function() {
+
+                                            self.clickNextPage(info.nextPageUrl);
+
+                                        }, self.restTime);
+
+                                    }
+                                });
+                            });
+            
+            
+
+                        });
+                    }
+                });
+            });
+        });
+        
+    };
 
     this.checkPage = function(html, url) {
         var isKeyExist = this.isKeywordExist(html);
@@ -137,6 +205,14 @@ var mysearch = new function() {
         return val > 0;
     };
 
+
+    this.hasAmazonKey = function(url) {
+
+        url = url.toLowerCase();
+        var val = url.indexOf("amazon");
+        return val > 0;
+    };
+
     this.getNextPageLink = function(html, url) {
         //console.log('getnextpagelink:'+url);
         var newurl, tempnum, addnum, tempurl, finalurl;
@@ -146,11 +222,20 @@ var mysearch = new function() {
         }
         var $ = cheerio.load(html);
 
+        if(curPageNum == 3) {
+            console.log("url:"+url);
+            console.log(html);
+        }
+
         $(".pagnLink a").each(function(){
             tempurl = $(this).attr('href');
             //console.log(tempurl);
+
             tempnum = self.getPageNum(tempurl);
             addnum = parseInt(curPageNum) + 1;
+            if(curPageNum == 3) {
+                console.log("tempurl:"+tempurl);
+            }            
             if(addnum == parseInt(tempnum)){
                 finalurl = tempurl;
             } 
