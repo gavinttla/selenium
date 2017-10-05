@@ -3,32 +3,37 @@
  * 
  */
 
-var searchKey, findKey;
+var searchKey, findKey, startUrl;
 
 process.argv.forEach(function(val, index){
     if(index>1){
-        var arrTemp = val.split('=');
+        val = val.replace(/=/, "##@##");
+        var arrTemp = val.split('##@##');
         if(arrTemp[0].toLowerCase() == '-search'){
             searchKey = arrTemp[1];
         }else if(arrTemp[0].toLowerCase() == '-find'){
             findKey = arrTemp[1];
+        }else if(arrTemp[0] == '-url'){
+            startUrl = arrTemp[1];
         }
     }
 });
-
 
 if (!searchKey || !findKey){
     console.log('command not right, please include -search and -find to run it \nEXAMPLE: c:\\node\\selenium>node app.js -search="bento box" -find="gotech"');
     process.exit()
 }
-//console.log(searchKey + "|" + findKey);
-//process.exit()
+
+if (!startUrl){
+    startUrl = 'https://www.amazon.com';
+}
 
 var webdriver = require('selenium-webdriver'),
     By = webdriver.By,
     until = webdriver.until;
 
 var fs = require('fs');
+var prompt = require('prompt');
 var cheerio = require('cheerio');
 
 var driver = new webdriver.Builder()
@@ -50,7 +55,17 @@ var mysearch = new function() {
     this.isDebug = false;
 
     // between clicks time range
-    this.restTime = 2000;
+    this.restTime = 3000;
+
+    this.promptSchema = {
+        properties: {
+            action: {
+                description: 'Are you want to continue search the rest of pages? [y/n]',
+                type: 'string',
+                required: true
+            }
+        }
+    };
 
     this.execute = function(option) {
 
@@ -74,17 +89,17 @@ var mysearch = new function() {
 
                         if(info.isKeyExist){
                             console.log("FOUND KEYWORD:"+self.findKey+" at page 1:"+url);
-                            process.exit()
+                            //process.exit()
+                            self.waitforinput(info.nextPageUrl);
+
+                        } else {
+                            if(info.nextPageUrl) {
+                                setTimeout(function() {
+                                    self.clickNextPage(info.nextPageUrl);
+                                }, self.restTime);
+                            }
                         }
-                        if(info.nextPageUrl) {
-                            
-                            setTimeout(function() {
 
-                                self.clickNextPage(info.nextPageUrl);
-
-                            }, self.restTime);
-
-                        }
                     });
                 });
             });
@@ -124,7 +139,7 @@ var mysearch = new function() {
                         self.echo("before click on: "+href);
                         element.click().then(function(){
 
-                            driver.sleep(1000).then(function(){
+                            driver.sleep(1500).then(function(){
 
                                 driver.getPageSource().then(function(source){
                                     //self.echo(source);
@@ -137,18 +152,21 @@ var mysearch = new function() {
                                         var info = self.checkPage(source, url);
                                         if(info.isKeyExist){
                                             console.log("FOUND KEYWORD:"+self.findKey+" AT PAGE :"+num+":"+url);
-                                            process.exit()
-                                        }
-
-                                        if(info.nextPageUrl) {
+                                            //process.exit()
                                             
-                                            setTimeout(function() {
-
-                                                self.clickNextPage(info.nextPageUrl);
-
-                                            }, self.restTime);
+                                            self.waitforinput(info.nextPageUrl);
+                                        
+                                        } else {
+                                            console.log('start next url');
+                                            if(info.nextPageUrl) {
+                                                setTimeout(function() {
+                                                    self.clickNextPage(info.nextPageUrl);
+                                                }, self.restTime);
+                                            }
 
                                         }
+
+
                                     });
                                 });
             
@@ -255,10 +273,26 @@ var mysearch = new function() {
         }
     };
 
+    this.waitforinput = function(nexturl) {
+        prompt.start();
+        //console.log('waitforinput');
+        prompt.get(self.promptSchema, function (err, result) {
+            if (err) { return onErr(err); }
+            if(result.action.toLowerCase() == 'y'){
+                setTimeout(function() {
+                        self.clickNextPage(nexturl);
+                    }, self.restTime);
+                prompt.stop();
+            }else if(result.action.toLowerCase() == 'n'){
+                process.exit();
+            }
+        });
+       
+    }
+
 };
 
-
-var soption = {'url':'https://www.amazon.com/', 'searchKeyword':searchKey, 'findKeyword':findKey};
+var soption = {'url':startUrl, 'searchKeyword':searchKey, 'findKeyword':findKey};
 //var soption = {'url':'https://www.amazon.com/', 'searchKeyword':'lunch box', 'findKeyword':'valilife'};
 
 mysearch.execute(soption);
