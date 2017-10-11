@@ -68,6 +68,131 @@ var mysearch = new function() {
         }
     };
 
+
+    // NOTE: use promise to acommplish async
+    this.execute = function(option) {
+
+        this.searchKey = option.searchKeyword;
+        this.findKey = option.findKeyword;
+        this.baseUrl = option.url;
+
+        let tSource = '';
+
+        driver.get(this.baseUrl).then(function(){
+
+            // put in the keyword into search box
+            var searchbox = driver.findElement(By.id('twotabsearchtextbox'));
+            searchbox.sendKeys(self.searchKey);
+
+            return driver.findElement(By.className('nav-input')).click();
+        
+        }).then(function(){
+
+            return driver.getPageSource();
+
+        }).then(function(source){
+
+            // asign the variable to upper function scope
+            tSource = source;
+
+            return driver.getCurrentUrl();
+
+        }).then(function(url){
+
+            var info = self.checkPage(tSource, url);
+
+            if(info.isKeyExist){
+                console.log("FOUND KEYWORD:"+self.findKey+" at page 1:"+url);
+                self.waitforinput(info.nextPageUrl);
+
+            } else {
+                if(info.nextPageUrl) {
+                    setTimeout(function() {
+                        self.clickNextPage(info.nextPageUrl);
+                    }, self.restTime);
+                }
+            }
+        });
+
+    };
+
+
+    this.clickNextPage = function(nextUrl) {
+
+        var nextnum = this.getPageNum(nextUrl);
+        self.echo("opening page num:"+nextnum);
+        self.echo("opening page url:"+nextUrl);
+
+        driver.findElements(By.linkText(nextnum)).then(function(elements){
+
+            //self.echo(elments);
+            elements.forEach(function(element, index){
+
+                element.getAttribute("href").then(function(href){
+
+                    self.echo('cururl:'+href);
+                    self.echo('nexurl:'+nextUrl);
+
+                    var isLink = false;
+                    if(self.hasAmazonKey(href)) {
+                        if(href == 'https://www.amazon.com' + nextUrl){
+                            isLink = true;
+                        }
+                    } else {
+                        if(href == nextUrl) {
+                            isLink = true;
+                        }
+                    }
+
+                    let cSource = "";
+
+                    if(isLink){
+                        self.echo("before click on: "+href);
+                        element.click().then(function(){
+
+                            return driver.sleep(1500);
+
+                        }).then(function(){
+
+                            return driver.getPageSource();
+                        
+                        }).then(function(source) {
+                            cSource = source;
+                            return driver.getCurrentUrl();
+
+                        }).then(function(url){
+
+                            var num = self.getPageNum(url);
+                            console.log("check page:" + num + "=>" + url);
+
+                            var info = self.checkPage(cSource, url);
+                            if(info.isKeyExist){
+                                console.log("FOUND KEYWORD:"+self.findKey+" AT PAGE :"+num+":"+url);
+                                //process.exit()
+                                
+                                self.waitforinput(info.nextPageUrl);
+                            
+                            } else {
+                                console.log('start next url');
+                                if(info.nextPageUrl) {
+                                    setTimeout(function() {
+                                        self.clickNextPage(info.nextPageUrl);
+                                    }, self.restTime);
+                                }
+
+                            }
+                        })
+
+
+                    }
+                });
+            });
+        });
+        
+    };
+
+/*
+    // did not use promise here
     this.execute = function(option) {
 
         this.searchKey = option.searchKeyword;
@@ -107,8 +232,9 @@ var mysearch = new function() {
 
         });
     };
-
+*/
     
+/*
     this.clickNextPage = function(nextUrl) {
 
         var nextnum = this.getPageNum(nextUrl);
@@ -184,6 +310,8 @@ var mysearch = new function() {
         });
         
     };
+*/
+
 
     this.checkPage = function(html, url) {
         var isKeyExist = this.isKeywordExist(html);
